@@ -1,6 +1,6 @@
 # LEXIA Counsel — MVP prototype
 
-Implementation of the **LEXIA Product Development Framework v2.0** (FD 01–09, Revision 02, 11 Nov 2026): a lawyer-supervised Philippine legal-intelligence workspace for matters, cited research, drafting with optional Lawyer DNA, tasks and Word export.
+Implementation of the **LEXIA Product Development Framework v2.0** (FD 01–09, **Revision 03**, 18 Nov 2026, which folds Amendment A-01 into Revision 02): a lawyer-supervised Philippine legal-intelligence workspace for matters, cited research, drafting with optional Lawyer DNA, tasks and Word export.
 
 > **Prototype status.** Runs locally on synthetic, fictional data only. It is not deployed, sends nothing externally, and contains **no real legal sources, prices, retention rules or approved policies**. Every item that the framework lists as pending (DEV-201…210 and others) is a clearly-labelled placeholder. Nothing here is legal advice.
 
@@ -8,7 +8,7 @@ Implementation of the **LEXIA Product Development Framework v2.0** (FD 01–09, 
 
 ```bash
 npm install
-npm run dev            # http://localhost:3000
+npm run dev -- -p 3001 # http://localhost:3001 (any free port works)
 ```
 
 On first start the server creates an embedded PostgreSQL database in `./.data/pg`. It then seeds the synthetic fixtures from FD 07 §6. Sign in at `/signin`; the page lists the fixture accounts in non-production builds. Every fixture account uses the password `Lexia-Pilot-2026!`.
@@ -37,7 +37,12 @@ Environment variables are listed in `.env.example`:
 
 ## Work Desk (task-oriented workspace)
 
-After sign-in, the lawyer sees one question, **"What would you like to do today?"**, instead of a list of modules. This implements the proposed *LEXIA Task-Oriented Legal Workspace* amendment, which is not yet in FD 01–09.
+After sign-in, the lawyer sees one question, **"What would you like to do today?"**, instead of a list of modules. This implements **Amendment A-01 — Task-Oriented Legal Workspace**, adopted 18 Nov 2026 and folded into FD 01–09 as Revision 03 (UX-103, FR-037–042, J-005, FLOW-007–009, TC-031–038, slice S7).
+
+Owner decisions recorded with the amendment:
+- **DEV-211 — Yes.** A task is labelled Ready only with an approved requirement, lawyer-reviewed template or rules, and passing tests. Everything else stays Coming later and is not built or simulated.
+- **DEV-212 — Yes.** Instruction matching stays deterministic keyword matching until an AI provider is approved (DEV-206/207).
+- **DEV-213 — Yes.** No voice input in the MVP.
 
 | Layer | What it is | Where |
 |---|---|---|
@@ -112,7 +117,8 @@ Otherwise the claim is **Needs checking** (with reasons) or **Unverified**, for 
 | FR-021–023 audit, export, policies/onboarding | `audit.ts`, matter export route, `/onboarding`, `/legal/*` |
 | FR-024 quality scorecard (raw counts, no targets) | `scorecard.ts`, `/app/account?tab=scorecard` |
 | FR-030–036 Lawyer DNA | `dna.ts`, `/app/dna` |
-| FD 07 test cases TC-001…029 | `tests/*.test.ts` (each test name cites its TC) |
+| FR-037–042 Work Desk (Rev 03) | `catalog.ts`, `workdesk.ts`, `/app`, `/app/continue`, `/app/start/*` |
+| FD 07 test cases TC-001…038 | `tests/*.test.ts` (each test name cites its TC) |
 
 ## Pending decisions — placeholders in this build
 
@@ -128,6 +134,7 @@ These are **not decided**. The code marks each one and does not invent a value.
 - **Retention and deletion periods:** not set. Withdrawals stop use immediately; deletion is logged as pending policy.
 - **Policies** (terms, privacy, AI disclosure, DNA notice): `0.1-draft`, marked "pending legal review".
 - **Notifications** (email or calendar reminder delivery): in-app only.
+- **Proposed Work Desk endpoints** `/v1/tasks`, `/v1/work`, `/v1/tasks/match` (FD 05 §3, Rev 03): proposed contracts, not built; the screens call the domain functions directly.
 
 ## Known limitations
 

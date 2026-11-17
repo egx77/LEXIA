@@ -2,7 +2,10 @@ import type { Permission } from './authz';
 import { tokens } from './embedding';
 
 /**
- * LEXIA Work Desk — Legal Task Catalog (proposed framework amendment: task-oriented legal workspace).
+ * LEXIA Work Desk — Legal Task Catalog. Framework Revision 03 (Amendment A-01): UX-103, FR-039, FR-041.
+ *
+ * DEV-211: a task becomes 'ready' only with an approved requirement, lawyer-reviewed template or rules, and
+ * passing tests. DEV-212: matching stays deterministic until an AI provider is approved. DEV-213: no voice input.
  *
  * What the lawyer sees is a task; the workflow and modules behind it are invisible. Availability is honest:
  *  - ready:   works end to end in this build
