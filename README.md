@@ -24,7 +24,7 @@ On first start the server creates an embedded PostgreSQL database in `./.data/pg
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Unit/integration suite (Vitest, in-memory DB): 46 tests, mapped to FD 07 test cases, the Work Desk and S6 hardening |
+| `npm test` | Unit/integration suite (Vitest, in-memory DB): 51 tests, mapped to FD 07 test cases, the Work Desk and S6 hardening |
 | `npm run typecheck` | TypeScript check |
 | `npm run build && npm start` | Production build |
 | `npm run smoke` | End-to-end smoke test driving real HTML forms against a running server (`BASE=http://localhost:3000`) |
