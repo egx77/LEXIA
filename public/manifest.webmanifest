@@ -1,0 +1,11 @@
+{
+  "name": "LEXIA Counsel",
+  "short_name": "LEXIA",
+  "description": "Lawyer-supervised Philippine legal intelligence workspace (pilot prototype). Online-first; confidential data is not stored offline.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ee",
+  "theme_color": "#1f3a5f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
