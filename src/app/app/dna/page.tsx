@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { addSampleAction, consentAction, feedbackDecisionAction, profileAction, withdrawSampleAction } from '@/app/actions';
+import { addSampleAction, consentAction, feedbackDecisionAction, profileAction, startBlindReviewAction, withdrawSampleAction } from '@/app/actions';
 import { Submit } from '@/components/client';
 import { Back, Badge, Empty, Flash, fmtDate, fmtDateTime, PageHead, Tabs } from '@/components/ui';
 import { requirePerm } from '@/lib/authz';
 import { consentHistory, consentState, DNA_NOTICE_VERSION, listFeedback, listProfiles, listSamples, previewParagraph, TRAIT_SPEC, type DnaType, type ProfileRow } from '@/lib/dna';
 import { listMatters } from '@/lib/matters';
+import { eligibleDrafts } from '@/lib/pilot';
 import { requireCtx } from '@/lib/session';
 
 export const metadata = { title: 'Lawyer DNA' };
@@ -24,11 +25,12 @@ export default async function DnaPage({ searchParams }: { searchParams: Promise<
         <Badge tone={consent.writing ? 'ok' : 'neutral'}>Writing DNA consent: {consent.writing ? 'active' : 'not given'}</Badge>
         <Badge tone={consent.reasoning ? 'ok' : 'neutral'}>Reasoning DNA consent: {consent.reasoning ? 'active' : 'not given'}</Badge>
       </div>
-      <Tabs base="/app/dna" current={tab} tabs={[['writing', 'Writing DNA'], ['reasoning', 'Reasoning DNA'], ['consent', 'Consent'], ['samples', 'Samples'], ['feedback', 'Feedback']]} />
+      <Tabs base="/app/dna" current={tab} tabs={[['writing', 'Writing DNA'], ['reasoning', 'Reasoning DNA'], ['consent', 'Consent'], ['samples', 'Samples'], ['feedback', 'Feedback'], ['blind', 'Blind review']]} />
       {(tab === 'writing' || tab === 'reasoning') && <Profile type={tab} hasConsent={consent[tab]} />}
       {tab === 'consent' && <Consent />}
       {tab === 'samples' && <Samples />}
       {tab === 'feedback' && <Feedback />}
+      {tab === 'blind' && <Blind />}
     </>
   );
 
@@ -178,6 +180,25 @@ export default async function DnaPage({ searchParams }: { searchParams: Promise<
           <label className="check"><input type="checkbox" name="attest" required /><span>I have authority to use this document as a sample for my own profile.</span></label>
           <Submit>Add sample</Submit>
         </form>
+      </div>
+    );
+  }
+
+  async function Blind() {
+    const rows = await eligibleDrafts(ctx);
+    return (
+      <div className="card">
+        <h2>Blind review — does it sound like you?</h2>
+        <p className="muted">For the pilot (FR-036). LEXIA shows two unlabeled versions of one of your drafts: one written with your Lawyer DNA, one neutral, in random order. You say which reads more like you and rate them. The answer is revealed only after you submit. Results are counted firm-wide without your name; nothing is recorded unless you consent on the review form.</p>
+        {rows.length ? <ul className="list">{rows.map((d) => (
+          <li key={d.id} className="row" style={{ justifyContent: 'space-between' }}>
+            <span><strong>{d.title}</strong> <small className="muted">· {fmtDate(d.created_at)}</small></span>
+            {d.completed_at ? <Badge tone="ok">Reviewed</Badge> : (
+              <form action={startBlindReviewAction}><input type="hidden" name="draft" value={d.id} />
+                <button className="btn small primary">{d.review_id ? 'Continue review' : 'Start blind review'}</button></form>
+            )}
+          </li>
+        ))}</ul> : <Empty>No eligible drafts yet. Write a draft with “Apply my Writing DNA” or “Reasoning DNA” ticked, then come back.</Empty>}
       </div>
     );
   }

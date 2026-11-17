@@ -9,7 +9,8 @@ export type ErrorCode =
   | 'consent_required'
   | 'ai_unavailable'
   | 'quota_exhausted'
-  | 'approval_invalid';
+  | 'approval_invalid'
+  | 'rate_limited';
 
 const STATUS: Record<ErrorCode, number> = {
   unauthenticated: 401,
@@ -22,6 +23,7 @@ const STATUS: Record<ErrorCode, number> = {
   ai_unavailable: 503,
   quota_exhausted: 402,
   approval_invalid: 409,
+  rate_limited: 429,
 };
 
 export class DomainError extends Error {

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { PGlite, type Transaction } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite-pgvector';
 import { SCHEMA, SCHEMA_VERSION } from './schema';
@@ -15,7 +15,13 @@ const g = globalThis as G;
 
 async function open(): Promise<PGlite> {
   const dir = process.env.LEXIA_DATA_DIR || './.data/pg';
-  if (dir !== 'memory://') mkdirSync(dir, { recursive: true });
+  if (dir !== 'memory://') {
+    mkdirSync(dir, { recursive: true });
+    // Single-process database: tell backup/restore scripts this process is using it (removed on exit).
+    const lock = `${dir.replace(/[\\/]+$/, '')}.lock`;
+    writeFileSync(lock, String(process.pid));
+    process.once('exit', () => { try { if (readFileSync(lock, 'utf8') === String(process.pid)) rmSync(lock); } catch { /* already gone */ } });
+  }
   const db = dir === 'memory://'
     ? await PGlite.create({ extensions: { vector } })
     : await PGlite.create(dir, { extensions: { vector } });

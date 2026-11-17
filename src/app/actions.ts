@@ -10,6 +10,7 @@ import * as drafts from '@/lib/drafts';
 import { DomainError } from '@/lib/errors';
 import { extractText, mimeFor } from '@/lib/extract';
 import * as matters from '@/lib/matters';
+import * as pilot from '@/lib/pilot';
 import { acceptPolicies, recordDemoRequest, selectPlan } from '@/lib/policies';
 import { runResearch } from '@/lib/research';
 import { attempt, clearSessionCookie, requireCtx, safePath, sessionToken, setSessionCookie, withMsg } from '@/lib/session';
@@ -419,4 +420,22 @@ export async function startDraftTaskAction(fd: FormData) {
     files.length ? `${files.length} document(s) attached` : ''].filter(Boolean).join('; ');
   redirect(withMsg(`/app/drafts/${out.draftId}`, out.state === 'complete' ? 'ok' : 'error',
     out.state === 'complete' ? `Draft prepared${saved ? ` (${saved})` : ''}. Review every citation and fact before approval.` : out.message ?? 'Draft created without full AI analysis.'));
+}
+
+// ---------- Pilot: blinded recognition review (FR-036) ----------
+
+export async function startBlindReviewAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const id = await attempt(() => pilot.startReview(ctx, s(fd, 'draft')), '/app/dna?tab=blind');
+  redirect(`/app/dna/review/${id}`);
+}
+
+export async function submitBlindReviewAction(fd: FormData) {
+  const ctx = await requireCtx();
+  const id = s(fd, 'id');
+  const r = await attempt(() => pilot.submitReview(ctx, id, {
+    voice: s(fd, 'voice'), approach: s(fd, 'approach'), legalIssue: s(fd, 'legal'), effort: s(fd, 'effort'),
+    comment: s(fd, 'comment'), consent: fd.get('consent') === 'yes',
+  }), `/app/dna/review/${id}`);
+  redirect(withMsg('/app/dna?tab=blind', 'ok', `Review recorded. The version written with your Lawyer DNA was ${r.personalizedWas}.`));
 }

@@ -90,6 +90,19 @@ export default async function Account({ searchParams }: { searchParams: Promise<
           <div className="card"><h3>Denied access attempts</h3><p className="kpi">{s.denials}</p><p className="muted">Cross-scope denials logged in audit</p></div>
           <div className="card"><h3>Sources needing re-check</h3><p className="kpi">{s.staleSources}</p><p className="muted">Last checked over 180 days ago (placeholder cadence)</p></div>
         </div>
+        <div className="card">
+          <h2>Blind review — Lawyer DNA recognition (FR-036)</h2>
+          <p className="muted">{s.recognition.completed} consented review(s). Lawyers compared their DNA draft with a neutral draft, unlabeled. Counts only; no names.</p>
+          {s.recognition.completed ? <div className="table-wrap"><table>
+            <thead><tr><th>Question</th><th>Picked DNA version</th><th>Picked neutral</th><th>Can’t tell</th></tr></thead>
+            <tbody>
+              <tr><td>Reads more like my writing</td><td>{s.recognition.voice.personalized}</td><td>{s.recognition.voice.neutral}</td><td>{s.recognition.voice.unsure}</td></tr>
+              <tr><td>Follows my analytical approach</td><td>{s.recognition.approach.personalized}</td><td>{s.recognition.approach.neutral}</td><td>{s.recognition.approach.unsure}</td></tr>
+            </tbody></table>
+            <p className="muted">Legal error noticed — none: {s.recognition.legal.none} · DNA version: {s.recognition.legal.personalized} · neutral: {s.recognition.legal.neutral} · both: {s.recognition.legal.both}. Edit effort — none: {s.recognition.effort.none} · light: {s.recognition.effort.light} · moderate: {s.recognition.effort.moderate} · heavy: {s.recognition.effort.heavy}.</p>
+          </div> : <Empty>No blind reviews yet. Lawyers start them from Lawyer DNA → Blind review.</Empty>}
+        </div>
+        <p><a className="btn" href="/app/account/scorecard-export" download>Download scorecard (CSV) for pilot evidence</a></p>
         <div className="card table-wrap"><h2>AI runs by outcome</h2>
           <table><thead><tr><th>Status</th><th>Runs</th><th>Units</th></tr></thead><tbody>{s.runs.map((r) => <tr key={r.status}><td>{r.status}</td><td>{r.n}</td><td>{r.units}</td></tr>)}</tbody></table></div>
       </>

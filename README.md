@@ -24,11 +24,15 @@ On first start the server creates an embedded PostgreSQL database in `./.data/pg
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Unit/integration suite (Vitest, in-memory DB): 38 tests, mapped to FD 07 test cases plus the Work Desk |
+| `npm test` | Unit/integration suite (Vitest, in-memory DB): 46 tests, mapped to FD 07 test cases, the Work Desk and S6 hardening |
 | `npm run typecheck` | TypeScript check |
 | `npm run build && npm start` | Production build |
 | `npm run smoke` | End-to-end smoke test driving real HTML forms against a running server (`BASE=http://localhost:3000`) |
 | `npm run db:reset` | Delete the local database. The next start re-seeds it. |
+| `npm run db:backup` | Back up the local database to `.data/backups/` and verify the copy. Stop the server first. |
+| `npm run db:verify -- <file>` | Check a backup: checksum, row counts, scoped-access integrity, append-only audit. |
+| `npm run db:restore -- <file>` | Verify, move the current database aside (never deleted), restore, verify again, write a restore report. |
+| `npm run evidence` | Write a pilot-readiness evidence report to `evidence/`. With `BASE=<running server>` it also runs the smoke test. |
 
 Environment variables are listed in `.env.example`:
 - `LEXIA_DATA_DIR` sets where the database lives.
@@ -61,6 +65,20 @@ Owner decisions recorded with the amendment:
   - suggested dates waiting for verification;
   - drafts awaiting the lawyer's approval;
   - unfinished drafts.
+
+## Pilot hardening (FD 08 slice S6)
+
+| Area | What exists | Where |
+|---|---|---|
+| Usage and quality scorecard (FR-024) | Raw counts with denominators, now including blind-review results; CSV download for pilot evidence | `/app/account?tab=scorecard`, `scorecard.ts` |
+| Blinded recognition review (FR-036, TC-030) | A lawyer compares the DNA and neutral versions of their own draft, unlabeled, in random order; consent required; answer revealed afterwards; firm sees counts only | Lawyer DNA → Blind review, `pilot.ts` |
+| AI outage and quota continuity (FR-021) | Unchanged: partial and manual drafts stay editable and exportable | TC-021 |
+| Security | Sign-in throttling (same message for any email, unlocked by password reset); cross-firm direct-ID sweep; no passwords or tokens in the audit log | `accounts.ts`, `tests/hardening.test.ts` |
+| Backup and restore | Verified backups with an integrity report; restore never deletes the current database; refuses to run while the server is using the database | `scripts/backup.mjs` |
+| Accessibility basics | Smoke test checks page language, one heading, skip link and a label on every control | `scripts/smoke.mjs` |
+| Go/no-go evidence | `npm run evidence` writes build, environment, results by test case, quality gates, before-pilot checklist and a blank owner decision | `evidence/` |
+
+S6 produces evidence; it does not approve a pilot. The before-pilot items in FD 07 §8 (source rights, reviewed policies and consent text, support process, participant agreement) are owner tasks and are listed as pending in every evidence report.
 
 ## Architecture
 
@@ -134,6 +152,8 @@ These are **not decided**. The code marks each one and does not invent a value.
 - **Retention and deletion periods:** not set. Withdrawals stop use immediately; deletion is logged as pending policy.
 - **Policies** (terms, privacy, AI disclosure, DNA notice): `0.1-draft`, marked "pending legal review".
 - **Notifications** (email or calendar reminder delivery): in-app only.
+- **Sign-in throttling values** (5 failures in 15 minutes → 15-minute lock): prototype defaults pending DEV-205.
+- **Backup frequency, retention and recovery-time targets:** not set (FD 02 §6, DEV-209). Backups are manual and local.
 - **Proposed Work Desk endpoints** `/v1/tasks`, `/v1/work`, `/v1/tasks/match` (FD 05 §3, Rev 03): proposed contracts, not built; the screens call the domain functions directly.
 
 ## Known limitations

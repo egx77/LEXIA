@@ -6,6 +6,37 @@ import { DomainError } from './errors';
 
 /** FR-001 / FR-002. DEV-205 (MFA, session lifetime, reauth) pending — values below are prototype defaults. */
 export const SESSION_HOURS = 12;
+/**
+ * Sign-in throttling — prototype defaults pending DEV-205 (authentication design), not approved values.
+ * After MAX_FAILURES wrong passwords within WINDOW_MIN minutes the email is locked for LOCK_MIN minutes.
+ * Applied to every email, registered or not, with the same message, so it cannot reveal accounts.
+ */
+export const THROTTLE = { MAX_FAILURES: 5, WINDOW_MIN: 15, LOCK_MIN: 15 } as const;
+const LOCKED_MSG = `Too many sign-in attempts. Try again in ${THROTTLE.LOCK_MIN} minutes, or reset your password.`;
+const throttleKey = (email: string) => sha256(`signin:${email}`);
+
+async function assertNotLocked(email: string) {
+  const row = await one<{ locked: boolean }>(`select locked_until > now() as locked from auth_throttle where key_hash = $1`, [throttleKey(email)]);
+  if (row?.locked) throw new DomainError('rate_limited', LOCKED_MSG);
+}
+
+/** Records a failure; returns true when this failure triggered a lock. */
+async function recordFailure(email: string): Promise<boolean> {
+  const row = (await one<{ failures: number }>(
+    `insert into auth_throttle(key_hash, failures, window_started_at) values ($1, 1, now())
+     on conflict (key_hash) do update set
+       failures = case when auth_throttle.window_started_at < now() - make_interval(mins => $2) then 1 else auth_throttle.failures + 1 end,
+       window_started_at = case when auth_throttle.window_started_at < now() - make_interval(mins => $2) then now() else auth_throttle.window_started_at end
+     returning failures`, [throttleKey(email), THROTTLE.WINDOW_MIN]))!;
+  if (row.failures < THROTTLE.MAX_FAILURES) return false;
+  await q(`update auth_throttle set locked_until = now() + make_interval(mins => $2), failures = 0, window_started_at = now() where key_hash = $1`,
+    [throttleKey(email), THROTTLE.LOCK_MIN]);
+  return true;
+}
+
+async function clearThrottle(email: string) {
+  await q(`delete from auth_throttle where key_hash = $1`, [throttleKey(email)]);
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normEmail(e: string) {
@@ -61,13 +92,17 @@ export async function verifyEmail(token: string) {
 
 export async function signIn(emailIn: string, password: string): Promise<string> {
   const email = normEmail(emailIn);
+  await assertNotLocked(email);
   const user = await one<{ id: string; password_hash: string; email_verified_at: Date | null }>(
     `select id, password_hash, email_verified_at from users where lower(email) = $1`, [email]);
   const ok = user ? await verifyPassword(password, user.password_hash) : false;
   if (!user || !ok) {
-    await audit({ actorId: user?.id ?? null, action: 'auth.sign_in', outcome: 'denied' });
+    const locked = await recordFailure(email);
+    await audit({ actorId: user?.id ?? null, action: locked ? 'auth.sign_in_locked' : 'auth.sign_in', outcome: 'denied' });
+    if (locked) throw new DomainError('rate_limited', LOCKED_MSG);
     throw new DomainError('unauthenticated', 'Email or password is incorrect.');
   }
+  await clearThrottle(email);
   if (!user.email_verified_at) throw new DomainError('forbidden', 'Verify your email address before signing in.');
   const m = await one<{ tenant_id: string }>(
     `select tenant_id from memberships where user_id = $1 and status = 'active' order by created_at limit 1`, [user.id]);
@@ -133,6 +168,8 @@ export async function resetPassword(token: string, newPassword: string) {
     if (!row) throw new DomainError('invalid_input', 'This reset link is invalid or has expired.');
     await q(`update users set password_hash = $2 where id = $1`, [row.user_id, pwHash], t);
     await q(`update sessions set revoked_at = now() where user_id = $1 and revoked_at is null`, [row.user_id], t);
+    const u = (await one<{ email: string }>(`select email from users where id = $1`, [row.user_id], t))!;
+    await q(`delete from auth_throttle where key_hash = $1`, [throttleKey(normEmail(u.email))], t); // a reset unlocks sign-in
     await audit({ actorId: row.user_id, action: 'auth.password_reset' }, t);
   });
 }

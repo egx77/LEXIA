@@ -1,6 +1,7 @@
 import { requirePerm, type Ctx } from './authz';
 import { one, q } from './db';
 import type { DraftContent } from './drafts';
+import { recognitionSummary } from './pilot';
 
 /**
  * FR-024 legal quality & usage scorecard. Reports raw numerators/denominators only.
@@ -39,11 +40,31 @@ export async function scorecard(ctx: Ctx) {
     `select count(*)::int as n from legal_sources where (tenant_id is null or tenant_id = $1) and (last_checked_at is null or last_checked_at < now() - interval '180 days')`, [ctx.tenantId]))!.n;
   const denials = (await one<{ n: number }>(`select count(*)::int as n from audit_events where tenant_id = $1 and outcome = 'denied'`, [ctx.tenantId]))!.n;
   const recovered = (await one<{ n: number }>(`select count(*)::int as n from drafts where tenant_id = $1 and generation_state in ('partial','manual')`, [ctx.tenantId]))!.n;
+  const recognition = await recognitionSummary(ctx);
   return {
+    recognition,
     citations: { verified, needs, unverified, total: verified + needs + unverified },
     editing: { changedBlocks, aiBlocks },
     drafts, runs, totalUnits,
     unitsPerApprovedDraft: drafts.approved ? +(totalUnits / drafts.approved).toFixed(1) : null,
     staleSources, denials, recovered,
   };
+}
+
+/** Flat metric list for pilot evidence export (FD 07 §7). Raw counts only. */
+export function scorecardRows(s: Awaited<ReturnType<typeof scorecard>>): [string, string | number][] {
+  const r = s.recognition;
+  return [
+    ['citations.verified', s.citations.verified], ['citations.needs_checking', s.citations.needs], ['citations.unverified', s.citations.unverified], ['citations.total', s.citations.total],
+    ['editing.ai_blocks_changed', s.editing.changedBlocks], ['editing.ai_blocks_total', s.editing.aiBlocks],
+    ['drafts.total', s.drafts.total], ['drafts.approved', s.drafts.approved], ['drafts.partial_or_manual', s.drafts.partial], ['drafts.recovered_after_ai_stop', s.recovered],
+    ...s.runs.flatMap((x): [string, number][] => [[`ai_runs.${x.status}.count`, x.n], [`ai_runs.${x.status}.units`, x.units]]),
+    ['ai_units.total', s.totalUnits], ['ai_units.per_approved_draft', s.unitsPerApprovedDraft ?? ''],
+    ['sources.needing_recheck', s.staleSources], ['audit.denied_attempts', s.denials],
+    ['blind_review.completed', r.completed],
+    ['blind_review.voice.picked_personalized', r.voice.personalized], ['blind_review.voice.picked_neutral', r.voice.neutral], ['blind_review.voice.unsure', r.voice.unsure],
+    ['blind_review.approach.picked_personalized', r.approach.personalized], ['blind_review.approach.picked_neutral', r.approach.neutral], ['blind_review.approach.unsure', r.approach.unsure],
+    ['blind_review.legal_issue.none', r.legal.none], ['blind_review.legal_issue.personalized', r.legal.personalized], ['blind_review.legal_issue.neutral', r.legal.neutral], ['blind_review.legal_issue.both', r.legal.both],
+    ['blind_review.edit_effort.none', r.effort.none], ['blind_review.edit_effort.light', r.effort.light], ['blind_review.edit_effort.moderate', r.effort.moderate], ['blind_review.edit_effort.heavy', r.effort.heavy],
+  ];
 }

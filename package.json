@@ -11,7 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:reset": "node --experimental-strip-types scripts/reset-db.ts",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "db:backup": "node scripts/backup.mjs backup",
+    "db:verify": "node scripts/backup.mjs verify",
+    "db:restore": "node scripts/backup.mjs restore",
+    "evidence": "node scripts/evidence.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.16",

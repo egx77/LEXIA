@@ -204,6 +204,8 @@ export const TASKS: TaskDef[] = [
   later('practice', 'templates', 'Manage my templates', 'Approved documents and clauses', ['templates', 'clauses']),
   { id: 'update-dna', cat: 'practice', label: 'Update my Lawyer DNA', detail: 'Writing and reasoning preferences', availability: 'ready', href: '/app/dna', perm: 'dna',
     keywords: ['dna', 'lawyer dna', 'preferences', 'writing style', 'samples'] },
+  { id: 'blind-review', cat: 'practice', label: 'Blind-review my drafts', detail: 'Pilot: does the DNA version sound like you? (FR-036)', availability: 'ready', href: '/app/dna?tab=blind', perm: 'dna',
+    keywords: ['blind review', 'blind', 'recognition', 'sound like me', 'pilot review'] },
   later('practice', 'plan-practice', 'Plan my legal practice', 'Goals, strategies and resources', ['plan practice', 'goals']),
 
   // J. Learn

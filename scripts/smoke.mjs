@@ -32,7 +32,7 @@ async function submit(page, marker, fields, nth = 0) {
   const sc = r.headers.getSetCookie?.() ?? [];
   for (const c of sc) { const kv = c.split(';')[0]; if (kv.startsWith('lexia_session=')) cookie = kv; }
   const loc = r.headers.get('location') ?? '';
-  return decodeURIComponent(loc.replace(B, ''));
+  return decodeURIComponent(loc.replace(B, '').replace(/\+/g, ' '));
 }
 async function signIn(email) {
   cookie = '';
@@ -163,6 +163,49 @@ loc = await submit('/app/research', 'name="question"', [['question', 'Whether de
 page = await get(loc.split('?')[0]);
 check(page.html.includes('AI analysis unavailable'), 'outage -> keyword fallback notice');
 await submit('/app/account', 'name="simulation"', [['simulation', 'none']]);
+
+// ---- S6 pilot hardening ----
+{
+  // FR-036 blinded recognition review of the guided Writing-DNA draft created above
+  let p = await get('/app/dna?tab=blind');
+  check(p.status === 200 && p.html.includes('Start blind review'), 'blind review list offers a DNA draft');
+  let l = await submit('/app/dna?tab=blind', 'name="draft"', []);
+  check(/\/app\/dna\/review\/[0-9a-f-]{36}$/.test(l), `start blind review → ${l}`);
+  p = await get(l);
+  const docs = p.html.split('Version A')[1]?.split('1. Which version')[0] ?? '';
+  check(p.status === 200 && docs.includes('Version B') && !/dna|neutral|personaliz/i.test(docs), 'review page shows A/B with no label giving the answer away');
+  const noConsent = await submit(l, 'name="voice"', [['voice', 'a'], ['approach', 'b'], ['legal', 'none'], ['effort', 'light']]);
+  check(noConsent.includes('error='), 'review without consent is refused');
+  const done = await submit(l, 'name="voice"', [['voice', 'a'], ['approach', 'b'], ['legal', 'none'], ['effort', 'light'], ['consent', 'yes']]);
+  check(/ok=.*Lawyer DNA was [AB]/.test(done), `review recorded and answer revealed (${done.slice(0, 110)})`);
+  const csv = await get('/app/account/scorecard-export');
+  check(csv.status === 200 && csv.r.headers.get('content-type')?.includes('text/csv') && /"blind_review\.completed","[1-9]\d*"/.test(csv.html), 'scorecard CSV export includes the review count');
+
+  // Accessibility basics on key screens (FD 02 §6): page language, one h1, skip link, every control labelled
+  const pages = ['/app', '/app/start?cat=write', '/app/start/write-pleading', '/app/continue', '/app/research', '/app/tasks', '/app/dna?tab=consent', '/app/account?tab=scorecard'];
+  for (const path of pages) {
+    const { html } = await get(path);
+    const problems = [];
+    if (!/<html[^>]*\blang="/.test(html)) problems.push('no lang');
+    if ((html.match(/<h1[\s>]/g) ?? []).length !== 1) problems.push(`${(html.match(/<h1[\s>]/g) ?? []).length} h1`);
+    if (!html.includes('class="skip"')) problems.push('no skip link');
+    for (const m of html.matchAll(/<(input|select|textarea)\b[^>]*>/g)) {
+      const tag = m[0];
+      if (/type="(hidden|submit|button)"/.test(tag)) continue;
+      const id = /\bid="([^"]+)"/.exec(tag)?.[1];
+      const before = html.slice(0, m.index);
+      const wrapped = before.lastIndexOf('<label') > before.lastIndexOf('</label>');
+      if (!wrapped && !/aria-label(ledby)?="/.test(tag) && !(id && html.includes(`for="${id}"`))) problems.push(`unlabelled ${tag.slice(0, 60)}`);
+    }
+    check(problems.length === 0, `a11y basics ${path}${problems.length ? ' — ' + problems.slice(0, 3).join(' | ') : ''}`);
+  }
+
+  // Sign-in throttling through the real form (unregistered email, so no fixture account is locked)
+  cookie = '';
+  let last = '';
+  for (let i = 0; i < 5; i++) last = await submit('/signin', 'name="password"', [['email', 'nobody@example.test'], ['password', 'wrong-password-123'], ['next', '/app']]);
+  check(last.includes('Too many sign-in attempts'), `5 wrong passwords → locked (${last.slice(0, 80)})`);
+}
 
 log(failures ? `\n${failures} FAILURE(S)` : '\nALL SMOKE CHECKS PASSED');
 process.exit(failures ? 1 : 0);

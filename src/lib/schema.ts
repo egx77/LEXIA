@@ -3,7 +3,7 @@
  * DEV-201 (physical DB/indexing) is still pending: this is the PostgreSQL + pgvector
  * prototype direction accepted in DEV-102, not a production-approved schema.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA = /* sql */ `
 create extension if not exists vector;
@@ -471,4 +471,32 @@ $$ language plpgsql;
 drop trigger if exists audit_no_update on audit_events;
 create trigger audit_no_update before update or delete on audit_events
   for each row execute function audit_append_only();
+
+-- Sign-in throttling (FR-022, FD 07 §4 security). Keyed by a hash of the normalized email,
+-- whether or not the account exists, so lockout does not reveal which emails are registered.
+create table if not exists auth_throttle (
+  key_hash text primary key,
+  failures int not null default 0,
+  window_started_at timestamptz not null default now(),
+  locked_until timestamptz
+);
+
+-- FR-036 blinded recognition review (S6 pilot). The reviewer sees the personalized and the neutral
+-- version of their own draft as unlabeled A/B; the order is fixed server-side when the review starts.
+create table if not exists pilot_reviews (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references tenants(id),
+  draft_id uuid not null references drafts(id),
+  reviewer_id uuid not null references users(id),
+  personalized_is_a boolean not null,
+  voice_pick text check (voice_pick in ('a','b','unsure')),
+  approach_pick text check (approach_pick in ('a','b','unsure')),
+  legal_issue text check (legal_issue in ('none','a','b','both')),
+  edit_effort text check (edit_effort in ('none','light','moderate','heavy')),
+  comment text,
+  consent_pilot_use boolean not null default false,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz,
+  unique (draft_id, reviewer_id)
+);
 `;
